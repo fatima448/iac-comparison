@@ -1,22 +1,26 @@
 # Manual Docker Deployment
 
+All commands are run from the **repository root** in PowerShell, with Docker
+Desktop running.
+
 ## Overview
 
-This document describes the manual Docker commands used to deploy and remove the Nginx web server for the Infrastructure as Code comparison experiment.
+This document lists the manual Docker commands used to deploy, verify, and
+remove the Nginx environment for the Infrastructure as Code comparison. The
+deployment creates a Docker network and an Nginx container serving
+`site/index.html` on port 8080.
 
-The manual deployment creates a Docker network and an Nginx container. The container serves a static HTML page through port 8080.
-
-## 1. Prerequisites
-
-- Docker Desktop installed and running
-- Nginx image (`nginx:1.27.5-alpine`) available locally
-- HTML file located at `site/index.html`
-
-## 2. Deployment
-
-The following PowerShell commands were used to measure the combined execution time of network and container creation.
+## 0. Preparation (not timed)
 
 ```powershell
+docker pull nginx:1.27.5-alpine
+```
+
+## 1. Deployment (timed)
+
+```powershell
+$site = (Resolve-Path .\site\index.html).Path
+
 Measure-Command {
     docker network create iac-lab-net
 
@@ -24,32 +28,23 @@ Measure-Command {
         --name iac-lab-web `
         --network iac-lab-net `
         -p 127.0.0.1:8080:80 `
-        --mount "type=bind,source=$((Resolve-Path ../site/index.html).Path),target=/usr/share/nginx/html/index.html,readonly"
+        --mount "type=bind,source=$site,target=/usr/share/nginx/html/index.html,readonly" `
         nginx:1.27.5-alpine
 } | Select-Object TotalSeconds
 ```
 
-## 3. Verification
-
-The deployed resources were checked using:
+## 2. Verification (not timed)
 
 ```powershell
 docker ps --filter "name=iac-lab-web"
 docker network ls --filter "name=iac-lab-net"
-```
-
-The webpage was verified using:
-
-```powershell
-Invoke-WebRequest http://localhost:8080 -UseBasicParsing |
-    Select-Object StatusCode
+(Invoke-WebRequest http://localhost:8080 -UseBasicParsing).StatusCode
+docker stats --no-stream iac-lab-web
 ```
 
 An HTTP status code of 200 indicates that the server responded successfully.
 
-## 4. Removal
-
-The following commands were used to measure removal time:
+## 3. Removal (timed)
 
 ```powershell
 Measure-Command {
@@ -58,8 +53,22 @@ Measure-Command {
 } | Select-Object TotalSeconds
 ```
 
+## 4. Confirm cleanup
+
+```powershell
+docker ps -a --filter "name=iac-lab-web"
+docker network ls --filter "name=iac-lab-net"
+```
+
+Both commands should show no matching resources.
+
 ## 5. Repeatability
 
-The deployment and removal procedures were repeated for the recorded experimental trials. Execution times were collected for comparison with Terraform.
+Deployment and removal were repeated six times. Timings are in
+`results/timings.csv`. The commands were run manually in PowerShell, not
+through an automated script.
 
-The commands were executed manually through PowerShell rather than through an automated deployment script.
+## Mistakes and troubleshooting
+
+[Copy from results/time_log.txt. If nothing went wrong, write:
+"No errors occurred during the recorded trials."]
